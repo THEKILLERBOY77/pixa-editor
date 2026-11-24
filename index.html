@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pixa">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<title>Pixa — фоторедактор</title>
+</head>
+<body>
+
+<!-- ГЛАВНАЯ -->
+<div id="home" class="screen">
+  <div class="home-inner">
+    <div class="logo"><span>Pixa</span></div>
+    <p class="tag">Личный фоторедактор. Все фото обрабатываются на вашем телефоне и никуда не отправляются.</p>
+    <div class="cards">
+      <button class="card big" data-start="filters"><i>🖼</i><b>Редактировать фото</b><small>Фильтры, настройки, текст, стикеры</small></button>
+      <button class="card" data-start="retouch"><i>💄</i><b>Ретушь лица</b><small>Кожа, глаза, зубы</small></button>
+      <button class="card" data-start="ai"><i>✨</i><b>AI-инструменты</b><small>Фон, ластик, качество</small></button>
+      <button class="card" id="card-collage"><i>🧩</i><b>Коллаж</b><small>2–9 фото</small></button>
+      <button class="card" data-start="effects"><i>🪄</i><b>Эффекты</b><small>Эскиз, глитч, свечение</small></button>
+    </div>
+    <p class="hint">Чтобы установить как приложение: Safari → «Поделиться» → «На экран “Домой”».</p>
+  </div>
+</div>
+
+<!-- РЕДАКТОР -->
+<div id="editor" class="screen hidden">
+  <header class="top">
+    <button id="b-close" aria-label="Закрыть">✕</button>
+    <div class="sp"></div>
+    <button id="b-undo" aria-label="Отменить">↶</button>
+    <button id="b-redo" aria-label="Вернуть">↷</button>
+    <button id="b-cmp" aria-label="Сравнить">👁</button>
+    <button id="b-save" class="pri">Готово</button>
+  </header>
+  <main id="stage">
+    <div id="wrap">
+      <canvas id="gl"></canvas>
+      <canvas id="ov"></canvas>
+      <div id="crop" hidden>
+        <i class="h tl" data-h="tl"></i><i class="h tr" data-h="tr"></i>
+        <i class="h bl" data-h="bl"></i><i class="h br" data-h="br"></i>
+        <span class="gl v1"></span><span class="gl v2"></span><span class="gl h1"></span><span class="gl h2"></span>
+      </div>
+    </div>
+    <div id="busy" hidden><div class="spin"></div><span id="busyt">Обработка…</span></div>
+  </main>
+  <section id="panel"></section>
+  <nav id="tabs"></nav>
+</div>
+
+<!-- КОЛЛАЖ -->
+<div id="collage" class="screen hidden">
+  <header class="top">
+    <button id="c-close">✕</button>
+    <div class="sp"></div>
+    <button id="c-done" class="pri">Далее</button>
+  </header>
+  <main id="cstage"><canvas id="ccv"></canvas></main>
+  <section id="cpanel"></section>
+</div>
+
+<!-- ЭКСПОРТ -->
+<div id="modal" class="hidden">
+  <div class="sheet">
+    <h3>Сохранить фото</h3>
+    <img id="m-img" alt="">
+    <div class="row">
+      <button class="chip on" data-fmt="jpeg">JPG</button>
+      <button class="chip" data-fmt="png">PNG</button>
+      <label class="sl grow" id="m-qwrap"><span>Качество</span><input type="range" id="m-q" min="60" max="100" value="92"><b id="m-qv">92</b></label>
+    </div>
+    <p class="note" id="m-info"></p>
+    <button class="pri wide" id="m-share">Сохранить / Поделиться</button>
+    <p class="note">В меню выберите «Сохранить изображение», и фото окажется в «Фото». Либо зажмите картинку выше пальцем.</p>
+    <button class="ghost wide" id="m-close">Закрыть</button>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<input type="file" id="f-one" accept="image/*" hidden>
+<input type="file" id="f-many" accept="image/*" multiple hidden>
+
+<script src="util.js"></script>
+<script src="gl.js"></script>
+<script src="beauty.js"></script>
+<script src="effects.js"></script>
+<script src="ai.js"></script>
+<script src="collage.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
