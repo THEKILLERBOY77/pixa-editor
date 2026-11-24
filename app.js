@@ -12,8 +12,10 @@
     ['effects', '🪄', 'Эффекты'], ['text', '🔤', 'Текст'], ['stickers', '😀', 'Стикеры'], ['draw', '✏️', 'Рисунок'], ['frame', '🖼', 'Рамки']];
   const RATIOS = [['Свободно', 0], ['Исходное', -1], ['1:1', 1], ['4:5', 0.8], ['3:4', 0.75], ['9:16', 0.5625], ['16:9', 16 / 9], ['3:2', 1.5], ['2:3', 2 / 3]];
   const COLORS = ['#ffffff', '#000000', '#ff3b5c', '#ffd60a', '#30d158', '#0a84ff', '#bf5af2', '#ff9f0a', '#25f4ee', '#ff6ec7'];
-  const FONTS = [['Обычный', '-apple-system, Helvetica, Arial, sans-serif'], ['Serif', 'Georgia, serif'], ['Impact', 'Impact, Haettenschweiler, sans-serif'], ['Моно', '"Courier New", monospace'],
-    ['Рукопись', '"Snell Roundhand", cursive'], ['Marker', '"Marker Felt", fantasy'], ['Chalk', 'Chalkduster, fantasy']];
+  const FONTS = [['Обычный', '-apple-system, Helvetica, Arial, sans-serif'], ['Serif', 'Georgia, serif'], ['Impact', 'Impact, Haettenschweiler, sans-serif'], ['Моно', "'Courier New', monospace"],
+    ['Рукопись', "'Snell Roundhand', cursive"], ['Marker', "'Marker Felt', fantasy"], ['Chalk', 'Chalkduster, fantasy']];
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const MAX_SIDE = 3072;
   const EMOJI = '😀 😂 🥹 😍 🥰 😎 🤩 😭 😡 🥳 😴 🤔 🙈 👍 👎 👏 🙌 🙏 💪 ✌️ 🤞 👀 💋 ❤️ 🧡 💛 💚 💙 💜 🖤 💔 💖 ✨ ⭐ 🌟 💫 🔥 💥 💯 ✅ ❌ ❗ ❓ 🎉 🎊 🎈 🎁 🎂 🍕 🍔 🍟 🍩 🍦 ☕ 🍷 🍺 🌸 🌹 🌻 🌈 ☀️ 🌙 ⚡ ❄️ 🌊 🍀 🐶 🐱 🐼 🦊 🦄 🦋 🐝 🐾 🚗 ✈️ 🏖 🏝 🎵 🎶 🎧 📸 🎬 👑 💎 🕶 🎀 🚀 🛸 👻 💀 🤖 👽 🎃'.split(' ');
   const LIPS = [['Нюд', '#c98a7a'], ['Роза', '#e0607e'], ['Красная', '#c8102e'], ['Коралл', '#ff6f61'], ['Вишня', '#8b1a3a'], ['Фиолет', '#9b3d7a']];
   const BP = [['smooth', 'Гладкая кожа'], ['whiten', 'Осветлить кожу'], ['slim', 'Овал лица'], ['bigEyes', 'Размер глаз'], ['eyes', 'Блеск глаз'], ['teeth', 'Белые зубы'], ['lips', 'Помада']];
@@ -70,15 +72,23 @@
     const img = S.compare || !S.temp ? S.base : S.temp;
     show(img);
     R.render(S.compare ? {} : finalParams());
+    renderOv();
+    ov.style.pointerEvents = ['text', 'stickers', 'draw'].includes(S.tab) || (S.tab === 'ai' && S.ai.mode === 'erase') ? 'auto' : 'none';
+    syncCrop();
+  }
+
+  // перерисовка только слоя текста/стикеров/рисунка (дёшево, для жестов)
+  let ovRaf = 0;
+  function renderOv() {
+    const img = S.shown; if (!img) return;
     if (ov.width !== img.width || ov.height !== img.height) { ov.width = img.width; ov.height = img.height; }
     octx.clearRect(0, 0, ov.width, ov.height);
     if (!S.temp && !S.compare) {
       drawOverlays(octx, ov.width, ov.height, true);
       if (S.ai.mode === 'erase' && S.tab === 'ai') drawErase(octx);
     }
-    ov.style.pointerEvents = ['text', 'stickers', 'draw'].includes(S.tab) || (S.tab === 'ai' && S.ai.mode === 'erase') ? 'auto' : 'none';
-    syncCrop();
   }
+  function renderOvSoon() { if (!ovRaf) ovRaf = requestAnimationFrame(() => { ovRaf = 0; renderOv(); }); }
 
   function setBase(c, alpha) {
     S.base = c; if (alpha != null) S.hasAlpha = alpha;
@@ -168,7 +178,7 @@
     const s = S.hist[i]; if (!s) return;
     S.hi = i; S.adj = { ...s.adj }; S.filter = { ...s.filter }; S.overlays = JSON.parse(s.ov); S.sel = null; S.hasAlpha = s.alpha;
     S.pend = null; S.temp = null; S.erase = [];
-    S.base = s.base; render(); renderPanel(); updHist();
+    S.base = s.base; if (S.cr) initCrop(); render(); renderPanel(); updHist();
   }
   function updHist() { $('#b-undo').disabled = S.hi <= 0; $('#b-redo').disabled = S.hi >= S.hist.length - 1; }
 
@@ -218,7 +228,7 @@
 
   const PANELS = {
     crop() {
-      return `<div class="scroll">${RATIOS.map(([n, v]) => `<button class="chip ${S.cratio === v ? 'on' : ''}" data-act="ratio" data-v="${v}">${n}</button>`).join('')}</div>
+      return `<div class="scroll">${RATIOS.map(([n, v]) => `<button class="chip ${(S.cratioSel || 0) === v ? 'on' : ''}" data-act="ratio" data-v="${v}">${n}</button>`).join('')}</div>
       <div class="scroll"><button class="chip" data-act="rot-l">⟲ Влево</button><button class="chip" data-act="rot-r">⟳ Вправо</button><button class="chip" data-act="flip-h">⇋ Зеркало</button><button class="chip" data-act="flip-v">⇅ Зеркало</button></div>
       <div class="pp">${sl('Выпрямить', 'straight', -30, 30, 0)}</div><div id="pendslot"></div>`;
     },
@@ -258,15 +268,15 @@
     },
     effects() {
       const e = PX.effects.list.find((x) => x.id === S.eff.id);
-      return `<div class="scroll">${PX.effects.list.map((x) => `<button class="chip ${S.eff.id === x.id && S.pend ? 'on' : ''}" data-act="eff" data-v="${x.id}">${x.icon} ${x.name}</button>`).join('')}</div>
-      <div class="pp">${sl('Сила', 'effs', 0, 100, S.eff.s * 100)}
-      ${e.opt === 'duo' ? `<div class="scroll" style="padding:0">${PX.effects.DUO.map((d, i) => `<button class="sw ${S.eff.duo === i ? 'on' : ''}" style="background:linear-gradient(135deg,${d[0]},${d[1]})" data-act="duo" data-v="${i}"></button>`).join('')}</div>` : ''}</div><div id="pendslot"></div>`;
+      return `<div class="scroll">${PX.effects.list.map((x) => `<button class="chip ${S.eff.id === x.id ? 'on' : ''}" data-act="eff" data-v="${x.id}">${x.icon} ${x.name}</button>`).join('')}</div>
+      <div class="pp">${e ? sl('Сила', 'effs', 0, 100, S.eff.s * 100) : '<p class="note">Выберите эффект</p>'}
+      ${e && e.opt === 'duo' ? `<div class="scroll" style="padding:0">${PX.effects.DUO.map((d, i) => `<button class="sw ${S.eff.duo === i ? 'on' : ''}" style="background:linear-gradient(135deg,${d[0]},${d[1]})" data-act="duo" data-v="${i}"></button>`).join('')}</div>` : ''}</div><div id="pendslot"></div>`;
     },
     text() {
       const o = S.sel && S.sel.type === 'text' ? S.sel : null;
       if (!o) return `<div class="pp"><button class="chip on" data-act="add-text">＋ Добавить текст</button><p class="note">Коснитесь текста на фото, чтобы выбрать его. Двумя пальцами — масштаб и поворот.</p></div>`;
-      return `<div class="pp"><textarea id="txt" data-in="txt">${o.text}</textarea></div>
-      <div class="scroll">${FONTS.map((f, i) => `<button class="chip ${o.font === i ? 'on' : ''}" style="font-family:${f[1]}" data-act="font" data-v="${i}">${f[0]}</button>`).join('')}</div>
+      return `<div class="pp"><textarea id="txt" data-in="txt">${esc(o.text)}</textarea></div>
+      <div class="scroll">${FONTS.map((f, i) => `<button class="chip ${o.font === i ? 'on' : ''}" style="font-family:${esc(f[1])}" data-act="font" data-v="${i}">${f[0]}</button>`).join('')}</div>
       <div class="scroll"><button class="chip ${o.bold ? 'on' : ''}" data-act="tg" data-v="bold">Жирный</button><button class="chip ${o.outline ? 'on' : ''}" data-act="tg" data-v="outline">Контур</button><button class="chip ${o.shadow ? 'on' : ''}" data-act="tg" data-v="shadow">Тень</button><button class="chip ${o.bg ? 'on' : ''}" data-act="tg" data-v="bg">Плашка</button><button class="chip" data-act="add-text">＋ Ещё</button><button class="chip" data-act="del">🗑 Удалить</button></div>
       ${swatches(COLORS, o.color, 'tcolor')}<div class="pp">${sl('Размер', 'tsize', 10, 300, o.scale * 100)}</div>`;
     },
@@ -310,12 +320,14 @@
     if (S.tab === 'text' || S.tab === 'stickers') S.sel = null;
     S.tab = t;
     if (t === 'crop') initCrop();
+    if (t === 'effects') S.eff.id = null;
+    if (t === 'frame') S.frame.type = 'none';
     renderPanel(); render();
     if (t === 'retouch') ensureFaces();
   }
 
   /* ---------- обрезка ---------- */
-  function initCrop() { S.cr = { x: 0, y: 0, w: S.base.width, h: S.base.height }; S.cratio = 0; }
+  function initCrop() { S.cr = { x: 0, y: 0, w: S.base.width, h: S.base.height }; S.cratio = 0; S.cratioSel = 0; }
   function syncCrop() {
     const on = S.tab === 'crop' && !S.temp && S.base && S.cr;
     cropEl.hidden = !on; if (!on) return;
@@ -325,6 +337,7 @@
   }
   function setRatio(v) {
     const W = S.base.width, H = S.base.height;
+    S.cratioSel = v;
     if (v === -1) v = W / H;
     S.cratio = v;
     if (v > 0) {
@@ -380,7 +393,8 @@
     if (S.facesFor === S.base || S.facesBusy) return;
     S.facesBusy = true; S.faceErr = null; renderPanel();
     busy(true, 'Загружаю модель лица (первый раз ~10 МБ)…');
-    try { S.faces = await PX.beauty.detect(S.base); S.facesFor = S.base; }
+    const base = S.base;
+    try { const f = await PX.beauty.detect(base); if (S.base === base) { S.faces = f; S.facesFor = base; } }
     catch (e) { console.error(e); S.faceErr = e.message || String(e); }
     finally { S.facesBusy = false; busy(false); renderPanel(); }
   }
@@ -426,7 +440,7 @@
     const v = b.dataset.v;
     switch (b.dataset.act) {
       case 'pend-ok': return pendOk();
-      case 'pend-no': cancelPend(); S.bp = {}; return renderPanel();
+      case 'pend-no': cancelPend(); S.bp = {}; S.eff.id = null; S.frame.type = 'none'; return renderPanel();
       case 'ratio': setRatio(+v); return renderPanel();
       case 'rot-l': case 'rot-r': { const cw = b.dataset.act === 'rot-r', W = S.base.width, H = S.base.height;
         return geoCommit(rotate90(S.base, cw), cw ? (x, y) => [H - y, x] : (x, y) => [y, W - x], { rot: cw ? Math.PI / 2 : -Math.PI / 2 }); }
@@ -458,20 +472,24 @@
       case 'del': S.overlays = S.overlays.filter((o) => o !== S.sel); S.sel = null; commit(); render(); return renderPanel();
       case 'bmode': S.brush.mode = v; return renderPanel();
       case 'bcolor': S.brush.color = v; return renderPanel();
-      case 'stroke-undo': { for (let i = S.overlays.length - 1; i >= 0; i--) if (S.overlays[i].type === 'stroke') { S.overlays.splice(i, 1); break; } commit(); return render(); }
+      case 'stroke-undo': { for (let i = S.overlays.length - 1; i >= 0; i--) if (S.overlays[i].type === 'stroke') { S.overlays.splice(i, 1); commit(); return renderOv(); } return toast('Штрихов нет'); }
       case 'ftype': S.frame.type = v; renderPanel(); return framePreview();
       case 'fcolor': S.frame.color = v; renderPanel(); return framePreview();
     }
   });
   function effPreview() {
     const e = PX.effects.list.find((x) => x.id === S.eff.id), s = S.eff.s, duo = S.eff.duo;
+    if (!e) return;
     preview((c) => e.fn(c, s, { duo }));
   }
   function framePreview() {
     if (S.frame.type === 'none') { cancelPend(); return showPend(); }
     const { type, pct, color } = S.frame;
     preview((c) => PX.effects.frame(c, type, pct, color), (r) => {
-      mapOv((x, y) => [x + r._ox, y + r._oy]); setBase(r, S.hasAlpha || type === 'round'); commit();
+      const ox = r._ox, oy = r._oy, big = Math.max(r.width, r.height);
+      const k = big > MAX_SIDE ? MAX_SIDE / big : 1;
+      if (k < 1) r = U.fit(r, MAX_SIDE);
+      mapOv((x, y) => [(x + ox) * k, (y + oy) * k], { scale: k }); setBase(r, S.hasAlpha || type === 'round'); commit();
     });
   }
 
@@ -492,8 +510,8 @@
     }
     else if (k.startsWith('bp:')) { S.bp[k.slice(3)] = v / 100; if (k === 'bp:lips' && !v) delete S.bp.lips; retouchPreview(); }
     else if (k === 'effs') { S.eff.s = v / 100; effPreview(); }
-    else if (k === 'txt') { S.sel.text = t.value; render(); }
-    else if (k === 'tsize') { S.sel.scale = v / 100; render(); }
+    else if (k === 'txt') { if (S.sel) { S.sel.text = t.value; renderOvSoon(); } }
+    else if (k === 'tsize') { if (S.sel) { S.sel.scale = v / 100; renderOvSoon(); } }
     else if (k === 'bsize') S.brush.size = v / 1000;
     else if (k === 'ebrush') S.ai.brush = v / 100;
     else if (k === 'fpct') { S.frame.pct = v / 100; framePreview(); }
@@ -508,39 +526,48 @@
   ov.addEventListener('pointerdown', (e) => {
     try { ov.setPointerCapture(e.pointerId); } catch (err) {}
     const p = toImg(e); ptrs.set(e.pointerId, p);
-    if (S.tab === 'draw') {
-      curStroke = { type: 'stroke', pts: [p], color: S.brush.color, size: S.brush.size * Math.max(ov.width, ov.height) * 0.5, mode: S.brush.mode };
-      S.overlays.push(curStroke); render(); return;
-    }
-    if (S.tab === 'ai' && S.ai.mode === 'erase') {
-      curStroke = { pts: [p], size: S.ai.brush * Math.max(ov.width, ov.height) * 0.5 }; S.erase.push(curStroke); render(); return;
+    const brushTab = S.tab === 'draw' || (S.tab === 'ai' && S.ai.mode === 'erase');
+    if (brushTab) {
+      if (curStroke) return; // второй палец во время рисования игнорируем
+      if (S.tab === 'draw') {
+        curStroke = { type: 'stroke', pts: [p], color: S.brush.color, size: S.brush.size * Math.max(ov.width, ov.height) * 0.5, mode: S.brush.mode };
+        S.overlays.push(curStroke);
+      } else {
+        curStroke = { pts: [p], size: S.ai.brush * Math.max(ov.width, ov.height) * 0.5 }; S.erase.push(curStroke);
+      }
+      curStroke._pid = e.pointerId; renderOv(); return;
     }
     if (ptrs.size === 1) {
       const o = hitTest(p.x, p.y);
       if (o !== S.sel) { S.sel = o; renderPanel(); }
-      render();
+      renderOv();
       gest = o ? { type: 'move', o, dx: o.x - p.x, dy: o.y - p.y, changed: false } : null;
     } else if (ptrs.size === 2 && S.sel) {
       const [a, b] = [...ptrs.values()];
-      gest = { type: 'pinch', o: S.sel, d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, a0: Math.atan2(b.y - a.y, b.x - a.x), s0: S.sel.scale, r0: S.sel.rot, changed: false };
+      gest = { type: 'pinch', o: S.sel, d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, a0: Math.atan2(b.y - a.y, b.x - a.x), s0: S.sel.scale, r0: S.sel.rot, changed: !!(gest && gest.changed) };
     }
   });
   ov.addEventListener('pointermove', (e) => {
     if (!ptrs.has(e.pointerId)) return;
     const p = toImg(e); ptrs.set(e.pointerId, p);
-    if (curStroke) { curStroke.pts.push(p); render(); return; }
+    if (curStroke) { if (curStroke._pid === e.pointerId) { curStroke.pts.push(p); renderOvSoon(); } return; }
     if (!gest) return;
-    if (gest.type === 'move' && ptrs.size === 1) { gest.o.x = p.x + gest.dx; gest.o.y = p.y + gest.dy; gest.changed = true; render(); }
+    if (gest.type === 'move' && ptrs.size === 1) { gest.o.x = p.x + gest.dx; gest.o.y = p.y + gest.dy; gest.changed = true; renderOvSoon(); }
     else if (gest.type === 'pinch' && ptrs.size >= 2) {
       const [a, b] = [...ptrs.values()];
       gest.o.scale = U.clamp(gest.s0 * (Math.hypot(a.x - b.x, a.y - b.y) / gest.d0), 0.1, 8);
-      gest.o.rot = gest.r0 + (Math.atan2(b.y - a.y, b.x - a.x) - gest.a0); gest.changed = true; render();
+      gest.o.rot = gest.r0 + (Math.atan2(b.y - a.y, b.x - a.x) - gest.a0); gest.changed = true; renderOvSoon();
     }
   });
   const up = (e) => {
     if (!ptrs.has(e.pointerId)) return;
     ptrs.delete(e.pointerId);
-    if (curStroke) { curStroke = null; if (S.tab === 'draw') commit(); return; }
+    if (curStroke) {
+      if (curStroke._pid !== e.pointerId) return;
+      delete curStroke._pid; curStroke = null; renderOv();
+      if (S.tab === 'draw') commit();
+      return;
+    }
     if (gest && gest.changed) { commit(); if (S.sel) { /* обновить ползунок размера */ const s = panel.querySelector('[data-in=tsize]'); if (s) { s.value = S.sel.scale * 100; s.parentElement.querySelector('b').textContent = Math.round(S.sel.scale * 100); } } }
     if (ptrs.size === 0) gest = null;
     else if (gest && gest.type === 'pinch') { gest = null; }
@@ -574,7 +601,10 @@
     $('#m-img').src = M.url;
     $('#m-info').textContent = `${c.width}×${c.height}, ${(blob.size / 1048576).toFixed(2)} МБ`;
   }
-  $('#b-save').onclick = async () => { $('#modal').classList.remove('hidden'); await task('Готовлю файл…', makeBlob); };
+  $('#b-save').onclick = async () => {
+    if (S.pend) return toast('Сначала нажмите «Применить» или «Отмена»');
+    $('#modal').classList.remove('hidden'); await task('Готовлю файл…', makeBlob);
+  };
   $('#m-close').onclick = () => $('#modal').classList.add('hidden');
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') $('#modal').classList.add('hidden'); });
   document.querySelectorAll('[data-fmt]').forEach((b) => (b.onclick = async () => {
@@ -596,7 +626,8 @@
   /* ---------- открытие/закрытие ---------- */
   function openEditor(canvas, tab) {
     $('#home').classList.add('hidden'); $('#editor').classList.remove('hidden');
-    if (!R) R = new Renderer(glc);
+    if (!R) { R = new Renderer(glc); R.onRestore = () => { S.shown = null; render(); }; }
+    canvas = U.fit(canvas, Math.min(MAX_SIDE, R.maxTex || MAX_SIDE));
     S.shown = null; S.adj = {}; S.filter = { id: 'none', k: 1 }; S.overlays = []; S.sel = null; S.hist = []; S.hi = -1; S.bp = {}; S.faces = null; S.facesFor = null;
     S.erase = []; S.ai.mode = null; S.hasAlpha = false; S.cr = null; thumbsFor = null; smallFor = null;
     S.base = canvas; S.tab = tab || 'filters';
@@ -625,5 +656,6 @@
   }; inp.click(); };
 
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
-  window.PXApp = { S, openEditor };
+  window.PXApp = { S, openEditor, closeEditor, finalParams, flatten, setTab };
+  if (/[?&]test\b/.test(location.search)) { const s = document.createElement('script'); s.src = 'tests.js?' + Date.now(); document.body.appendChild(s); }
 })();

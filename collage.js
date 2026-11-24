@@ -105,6 +105,7 @@
   }
 
   PX.collage = {
+    _layoutsFor: layoutsFor,
     async open(files, onDone) {
       C.onDone = onDone; C.sel = -1; C.li = 0;
       C.imgs = [];

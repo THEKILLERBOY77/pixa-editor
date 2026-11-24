@@ -44,8 +44,20 @@ void main(){
   class Renderer {
     constructor(canvas) {
       this.c = canvas;
-      const gl = (this.gl = canvas.getContext('webgl', { premultipliedAlpha: true, preserveDrawingBuffer: true, alpha: true, antialias: false }));
-      if (!gl) throw new Error('WebGL недоступен');
+      this.gl = canvas.getContext('webgl', { premultipliedAlpha: true, preserveDrawingBuffer: true, alpha: true, antialias: false });
+      if (!this.gl) throw new Error('WebGL недоступен');
+      this.w = 0; this.h = 0; this.src = null; this.lost = false;
+      canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.lost = true; });
+      canvas.addEventListener('webglcontextrestored', () => {
+        this.lost = false; this.init();
+        if (this.src) this.setImage(this.src);
+        if (this.onRestore) this.onRestore();
+      });
+      this.init();
+    }
+    init() {
+      const gl = this.gl;
+      this.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 4096;
       const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
       const pr = (this.pr = gl.createProgram());
       gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS));
@@ -67,10 +79,11 @@ void main(){
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      this.w = 0; this.h = 0;
     }
     setImage(src) {
       const gl = this.gl;
+      this.src = src;
+      if (this.lost) return;
       this.c.width = this.w = src.width;
       this.c.height = this.h = src.height;
       gl.viewport(0, 0, this.w, this.h);
@@ -81,6 +94,7 @@ void main(){
     }
     render(p) {
       const gl = this.gl, u = this.u;
+      if (this.lost) return;
       p = p || {};
       gl.useProgram(this.pr);
       gl.uniform1i(u.tex, 0);

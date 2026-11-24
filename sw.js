@@ -1,4 +1,4 @@
-const VER = 'pixa-v1';
+const VER = 'pixa-v2';
 const SHELL = ['./', 'index.html', 'style.css', 'util.js', 'gl.js', 'beauty.js', 'effects.js', 'ai.js', 'collage.js', 'app.js', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 const EXT = ['cdn.jsdelivr.net', 'storage.googleapis.com'];
 
